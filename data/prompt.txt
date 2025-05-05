@@ -1,0 +1,7 @@
+given this template for a pr and using the changes provided in the json file. responde with only the new markdown that i can copy for the pr in spanish following this template:
+{template}
+
+You must be brief and to the point and make the response visually appealing. 
+Dont provide extra explanations, simply say what changed based on the diffs from the json provided. 
+never user "---" in your response.
+always wrap the markdown in ```markdown ``` tags.
