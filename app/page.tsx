@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowRight, Check, Copy, Github, Moon, Plus, RefreshCw, Settings, Sun, User, XCircle } from "lucide-react"
+import { ArrowRight, Check, CheckIcon, Copy, Github, Moon, Plus, RefreshCw, Settings, Sun, User, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,6 +33,7 @@ import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { vs } from "react-syntax-highlighter/dist/esm/styles/prism"
+import * as Checkbox from '@radix-ui/react-checkbox';
 
 
 // Define types for our data structure
@@ -77,6 +78,8 @@ export default function Home() {
   const [activePrompt, setActivePrompt] = useState("")
   const [error, setError] = useState("")
   const extractedMarkdown = useRef<string | null>(null)
+  const [injectNoThinking, setInjectNoThinking] = useState(false)
+
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -254,7 +257,7 @@ export default function Home() {
         options: {
           num_ctx: 8096,
         },
-        prompt: `<json_file>${activeJson}</json_file>\n\n${activePrompt}. markdown response: `
+        prompt: `${injectNoThinking ? " /no_think " : ''}<json_file>${activeJson}</json_file>\n\n${activePrompt}. markdown response: `
       };
       setAproxTokens(body.prompt.split(" ").length)
       const response = await fetch("http://localhost:11434/api/generate", {
@@ -312,6 +315,9 @@ export default function Home() {
 
       // 3. mark all checklist items as done
       processedResponse = processedResponse.replaceAll('- [ ]', '- [x]');
+
+      // remove think tags if they are empty
+      processedResponse = processedResponse.replaceAll('<think> </think>', '');
 
       // 4. parse the dashes if they exist
       processedResponse = parseDashes(processedResponse);
@@ -708,6 +714,29 @@ export default function Home() {
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox.Root
+                    className="w-5 h-5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 flex items-center justify-center"
+                    id="checkbox-id"
+                    checked={injectNoThinking}
+                    onCheckedChange={setInjectNoThinking}
+                  >
+                    <Checkbox.Indicator asChild>
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        className="text-zinc-900 dark:text-white"
+                      >
+                        <Check size={16} />
+                      </motion.div>
+                    </Checkbox.Indicator>
+                  </Checkbox.Root>
+                  <label htmlFor="checkbox-id" className="text-zinc-900 dark:text-white text-sm">
+                    Inject No-Thinking
+                  </label>
+                </div>
               </div>
             </motion.div>
 
