@@ -26,3 +26,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/settings.json
+data/prompt.txt
