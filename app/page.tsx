@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowRight, Check, CheckIcon, Copy, Github, Moon, Plus, RefreshCw, Settings, Sun, User, XCircle } from "lucide-react"
+import { ArrowRight, Check, CheckIcon, ChevronRight, Copy, Github, Moon, Plus, RefreshCw, Settings, Sun, User, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,6 +34,8 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { vs } from "react-syntax-highlighter/dist/esm/styles/prism"
 import * as Checkbox from '@radix-ui/react-checkbox';
+import React from "react"
+import rehypeRaw from 'rehype-raw'
 
 
 // Define types for our data structure
@@ -47,6 +49,82 @@ type GithubUser = {
   username: string
   repositories: Repository[]
 }
+
+const ThinkDropdownComponent = ({ node, children, ...props }) => {
+  const [isOpen, setIsOpen] = useState(false); // Control open state
+
+  let hasActualContent = false;
+  React.Children.forEach(children, child => {
+    if (hasActualContent) return;
+    if (child === null || child === undefined) return;
+    if (typeof child === 'string' && child.trim() !== '') hasActualContent = true;
+    else if (React.isValidElement(child)) hasActualContent = true;
+  });
+
+  if (!hasActualContent) return null;
+
+  const toggleOpen = (event: React.MouseEvent<HTMLElement>) => {
+    // Prevent default only if we are not clicking on interactive elements inside summary
+    // This is important if you ever add buttons/links to the summary itself.
+    // For a simple text summary, it might not be strictly necessary.
+    if (event.target === event.currentTarget || (event.target as HTMLElement).parentElement === event.currentTarget) {
+        event.preventDefault(); // Prevent default <details> toggling
+    }
+    setIsOpen(!isOpen);
+  };
+
+  return (
+    <div className="my-3 rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 shadow-sm">
+      {/* We replace <details> with a div and handle click on summary */}
+      <summary
+        onClick={toggleOpen}
+        // Add accessibility attributes to mimic <details> behavior
+        role="button"
+        aria-expanded={isOpen}
+        aria-controls={`think-content-${node?.position?.start.line}`} // Unique ID for content
+        className="cursor-pointer list-none p-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors flex items-center"
+      >
+        <motion.div
+          animate={{ rotate: isOpen ? 90 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronRight className="h-4 w-4 mr-1.5" />
+        </motion.div>
+        <span>LLM Thought Process</span>
+      </summary>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.section // Use section for semantic meaning of collapsible content
+            id={`think-content-${node?.position?.start.line}`}
+            key="content"
+            initial="collapsed"
+            animate="open"
+            exit="collapsed"
+            variants={{
+              open: { opacity: 1, height: "auto", marginTop: 0 },
+              collapsed: { opacity: 0, height: 0, marginTop: 0 }
+            }}
+            transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+            // Apply overflow hidden during animation to prevent content spill
+            // and remove it once animation is complete to allow for internal scrollbars if needed.
+            style={{ overflow: 'hidden' }}
+            onAnimationComplete={() => {
+              // If you need internal scrollbars for very long content,
+              // you might need to remove overflow:hidden after animation.
+              // This can be done by setting style={{ overflow: isOpen ? 'visible' : 'hidden' }}
+              // but be careful with layout shifts.
+            }}
+          >
+            <div className="p-3 border-t border-dashed border-zinc-300 dark:border-zinc-700 prose prose-sm dark:prose-invert max-w-none">
+              {children}
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 export default function Home() {
   const [settings, setSettings] = useState(null);
@@ -72,7 +150,7 @@ export default function Home() {
   const [diffContent, setDiffContent] = useState("")
   const [selectedDiffFile, setSelectedDiffFile] = useState<string>("")
   const [diffFiles, setDiffFiles] = useState<Record<string, string>>({})
-  const [markdownContent, setMarkdownContent] = useState("")
+  const [markdownContent, setMarkdownContent] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [activeJson, setActiveJson] = useState("")
   const [activePrompt, setActivePrompt] = useState("")
@@ -296,9 +374,12 @@ export default function Home() {
 
           // If the 'response' exists, accumulate it
           if (data.response) {
+            if(data.response.includes('</think>')) {
+              accumulatedResponse += data.response.replace('</think>', '\n</think>\n').replace('\n\n', '\n');
+            }
             accumulatedResponse += data.response;
           }
-          setMarkdownContent(accumulatedResponse)
+          setMarkdownContent(accumulatedResponse);
 
         } catch (e) {
           // If parsing fails, log and continue to next chunk
@@ -890,7 +971,9 @@ export default function Home() {
                       className="prose dark:prose-invert max-w-none"
                     >
                       <ReactMarkdown
+                        rehypePlugins={[rehypeRaw]}
                         components={{
+                          think: ThinkDropdownComponent,
                           code({ node, inline, className, children, ...props }) {
                             const match = /language-(\w+)/.exec(className || "")
                             const codeString = String(children).replace(/\n$/, "")
@@ -950,8 +1033,20 @@ export default function Home() {
                             />
                           ),
                           h2: ({ node, ...props }) => <h2 className="text-xl font-semibold mt-5 mb-3" {...props} />,
-                          p: ({ node, ...props }) => <p className="my-3 leading-7" {...props} />,
-                          ul: ({ node, ...props }) => <ul className="my-3 ml-6 list-disc" {...props} />,
+                          p: ({ node, children, ...props }) => {
+                            const hasBlockLevel = React.Children.toArray(children).some(
+                              (child) =>
+                                React.isValidElement(child) &&
+                                typeof child.type === "function" &&
+                                [ThinkDropdownComponent].includes(child.type)
+                            );
+                          
+                            if (hasBlockLevel) {
+                              return <div {...props}>{children}</div>; // or <>{children}</>
+                            }
+                          
+                            return <p className="my-3 leading-7" {...props}>{children}</p>;
+                          },                          ul: ({ node, ...props }) => <ul className="my-3 ml-6 list-disc" {...props} />,
                           li: ({ node, ...props }) => <li className="my-1" {...props} />,
                         }}
                       >
@@ -1000,7 +1095,7 @@ export default function Home() {
                 <TabsContent value="copied-content" className="mt-0">
                   {extractedMarkdown.current ? (
                     <motion.div
-                      key="markdown-content"
+                      key="markdown-copied-content"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -1096,7 +1191,7 @@ export default function Home() {
                     </motion.div>
                   ) : (
                     <motion.div
-                      key="markdown-placeholder"
+                      key="markdown-placeholder-copied-content"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
