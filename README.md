@@ -26,7 +26,10 @@ A local tool to automate the generation of pull requests based on local changes.
    ```bash
    npm install
    ```
-
+3. Build the app:
+   ```bash
+   npm run build
+   ```
 ## Usage
 
 Run the tool using the provided PowerShell script:
